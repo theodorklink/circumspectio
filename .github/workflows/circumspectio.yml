@@ -1,0 +1,59 @@
+name: Circumspectio
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Nur erzeugen, nicht senden (Ergebnis als Artefakt herunterladen)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: circumspectio
+  cancel-in-progress: false
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Times-kompatible Schrift für Diagramme
+        run: sudo apt-get install -y -qq fonts-liberation > /dev/null
+
+      - name: Abhängigkeiten
+        run: pip install -q -r requirements.txt
+
+      - name: Briefing erzeugen und senden
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'claude-sonnet-5-5' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+          MAX_SEARCHES: ${{ vars.MAX_SEARCHES || '25' }}
+          SEND_HOUR: ${{ vars.SEND_HOUR || '7' }}
+          SENDGRID_API_HOST: ${{ vars.SENDGRID_API_HOST || 'https://api.sendgrid.com' }}
+          CRON_SCHEDULE: ${{ github.event.schedule }}
+          SOFORT: ${{ github.event_name == 'workflow_dispatch' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python briefing.py
+
+      - name: Ausgabe sichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: circumspectio-${{ github.run_id }}
+          path: out/
+          retention-days: 30
+          if-no-files-found: ignore
