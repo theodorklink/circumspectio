@@ -1,0 +1,33 @@
+{
+  "lage_in_einem_satz": "Beispielausgabe: Dieser Satz verdichtet sonst die Lage des Morgens in einer Zeile.",
+  "schlagzeilen": [
+    {"region": "Deutschland", "titel": "Beispielmeldung aus Berlin", "kurz": "Ein bis zwei Sätze zur Meldung und warum sie zählt. Hier steht im echten Briefing der Kern der Nachricht.", "quelle": "tagesschau.de", "link": "https://www.tagesschau.de"},
+    {"region": "Deutschland", "titel": "Zweite Meldung aus Deutschland", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "FAZ", "link": "https://www.faz.net"},
+    {"region": "Europa", "titel": "Beispielmeldung aus Brüssel", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "Financial Times", "link": "https://www.ft.com"},
+    {"region": "Welt", "titel": "Beispielmeldung aus Washington", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "Wall Street Journal", "link": "https://www.wsj.com"},
+    {"region": "Welt", "titel": "Beispielmeldung aus Asien", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "BBC", "link": "https://www.bbc.com/news"}
+  ],
+  "hintergrund": [
+    {
+      "titel": "Beispiel-Hintergrundstück mit Bild, Diagramm und Akteurskarte",
+      "dachzeile": "Deutschland, Haushalt",
+      "text": "Im echten Briefing stehen hier 150 bis 250 Wörter Analyse.\n\nDer zweite Absatz ordnet ein und verbindet die Meldung mit größeren Linien.",
+      "hinter_den_kulissen": "Hier stehen Interessen, Signale und Lesarten. Spekulation wird ausdrücklich als solche gekennzeichnet.",
+      "worauf_achten": "Ein bis zwei Sätze zu den Indikatoren der nächsten Tage.",
+      "links": [{"quelle": "FAZ", "titel": "Beispielartikel", "url": "https://www.faz.net"}],
+      "bild_wikipedia": {"titel": "Reichstagsgebäude", "sprache": "de", "bildunterschrift": "Das Reichstagsgebäude in Berlin."},
+      "diagramm": {"typ": "balken", "titel": "Beispieldaten (fiktiv)", "einheit": "Mrd. Euro", "labels": ["2022", "2023", "2024", "2025", "2026"], "werte": [10, 12.5, 11.2, 14.8, 16.1], "quelle": "Beispiel"},
+      "akteure": {"titel": "Wer will was?", "akteure": [
+        {"name": "Akteur A", "position": "Öffentliche Position in einem Satz.", "interesse": "Eigentliches Interesse."},
+        {"name": "Akteur B", "position": "Öffentliche Position in einem Satz.", "interesse": "Eigentliches Interesse."}
+      ]}
+    }
+  ],
+  "am_horizont": [
+    {"titel": "Schwaches Signal", "text": "Zwei Sätze zu einer Entwicklung, die sich abzeichnet.", "signal": 1, "link": null},
+    {"titel": "Deutliches Signal", "text": "Zwei Sätze zu einer Entwicklung, die sich abzeichnet.", "signal": 3, "link": null}
+  ],
+  "termine": [{"wann": "Heute, 10 Uhr", "was": "Beispieltermin"}],
+  "hoertipps": [{"sendung": "Deutschlandfunk, Der Tag", "titel": "Beispielepisode", "beschreibung": "Ein Satz, warum hörenswert.", "dauer": "28 Min.", "url": "https://www.deutschlandfunk.de"}],
+  "zitat": {"text": "Ein wörtlich belegtes Zitat steht hier.", "person": "Person", "kontext": "bei Anlass X", "url": null}
+}
