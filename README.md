@@ -12,6 +12,7 @@ Jeden Morgen um 7:00 Uhr (Berlin) recherchiert Claude (Sonnet 5.5, Effort „hig
 | `briefing.py` | Recherche über die Claude API, Linkprüfung, Bilder, Diagramme, Versand |
 | `prompt.md` | Redaktionsanweisung an Claude: Rubriken, Quellen, Haltung. Hier ändern Sie den Inhalt. |
 | `template.html.j2` | Gestaltung der Mail (Times New Roman, Zeitungslayout). Hier ändern Sie das Aussehen. |
+| `assets/` | Logo (`logo.png`, `zeichen.png`) samt Vorlagen `logo.svg`, `zeichen.svg` und Erzeugungsskript |
 | `beispiel.json` | Testdaten, um das Layout ohne API-Kosten anzusehen |
 | `requirements.txt` | Python-Pakete |
 
@@ -90,6 +91,8 @@ Für eine andere Uhrzeit, z. B. 6 Uhr: `SEND_HOUR` auf `6` setzen und in der Wor
 
 - **Inhalt, Rubriken, Quellen, Länge:** `prompt.md` bearbeiten. Beispiel: eine Rubrik „Märkte“ oder „Naher Osten“ ergänzen, Quellen hinzufügen, Umfang ändern. Neue Felder müssen auch ins Template.
 - **Aussehen:** `template.html.j2`. Farben stehen oben in der Datei.
+- **Logo:** liegt als Bild in `assets/`, weil Gmail und Outlook SVG- und CSS-Grafiken nicht zuverlässig anzeigen. Fehlt der Ordner, erscheint der Titel als Schrift. Das Monogramm und der Schriftzug sind in Cinzel gesetzt, einer frei lizenzierten Schrift nach römischen Inschriften (Lizenz in `assets/Cinzel-OFL.txt`).
+- **Ausgabennummer:** zählt ab dem Datum in der Variable `AUSGABE_START` (Standard: 2026-10-07 = Nr. 1).
 - **Layout testen ohne Kosten** (lokal, Python 3.11+):
   ```
   pip install -r requirements.txt

@@ -56,6 +56,7 @@ MAX_SEARCHES = int(env("MAX_SEARCHES", "25"))
 MAX_TOKENS = int(env("MAX_TOKENS", "48000"))
 SEND_HOUR = int(env("SEND_HOUR", "7"))
 TITLE = env("NEWSLETTER_TITLE", "Circumspectio")
+AUSGABE_START = env("AUSGABE_START", "2026-10-07")  # Datum von Ausgabe Nr. 1
 
 UA = {"User-Agent": "Circumspectio/1.0 (privater Newsletter; GitHub Actions)"}
 BROWSER_UA = {
@@ -174,7 +175,13 @@ def recherchieren(now: dt.datetime) -> tuple[dict, set[str]]:
     return json_extrahieren("".join(texte), client), gesehen
 
 
+CITE_TAG = re.compile(r"</?(?:[\w-]+:)?cite\b[^>]*>", re.I)
+
+
 def json_extrahieren(roh: str, client=None) -> dict:
+    # Mit Websuche setzt Claude manchmal Quellenmarken wie <cite index='50-11'>…</cite>
+    # in den Text. Die Quellen stehen ohnehin als Links im Briefing, also entfernen.
+    roh = CITE_TAG.sub("", roh)
     m = re.search(r"<briefing_json>\s*(.*?)\s*</briefing_json>", roh, re.S)
     kandidat = m.group(1) if m else roh[roh.find("{"): roh.rfind("}") + 1]
     kandidat = re.sub(r"^```(?:json)?\s*|\s*```$", "", kandidat.strip())
@@ -334,6 +341,10 @@ def diagramm_png(spec: dict) -> bytes | None:
 
 def medien_erzeugen(d: dict) -> dict[str, dict]:
     medien: dict[str, dict] = {}
+    for cid, datei in (("logo", "logo.png"), ("zeichen", "zeichen.png")):
+        pfad = ROOT / "assets" / datei
+        if pfad.exists():
+            medien[cid] = {"data": pfad.read_bytes(), "mime": "image/png", "datei": datei}
     for i, h in enumerate(d.get("hintergrund") or [], start=1):
         b = h.get("bild_wikipedia")
         if b and b.get("titel"):
@@ -378,10 +389,39 @@ def absaetze(text, style: str = "") -> Markup:
     return Markup("".join(f'<p style="{escape(style)}">{escape(t)}</p>' for t in teile))
 
 
+def roemisch(n: int) -> str:
+    s = ""
+    for wert, zeichen in [(10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]:
+        while n >= wert:
+            s, n = s + zeichen, n - wert
+    return s
+
+
+def lesezeit(d: dict) -> int:
+    def woerter(x):
+        if isinstance(x, str):
+            return len(x.split())
+        if isinstance(x, dict):
+            return sum(woerter(v) for k, v in x.items() if k not in ("url", "link", "werte", "labels"))
+        if isinstance(x, list):
+            return sum(woerter(v) for v in x)
+        return 0
+    return max(1, round(woerter(d) / 220))
+
+
+def ausgabe_nr(now: dt.datetime) -> int:
+    try:
+        start = dt.date.fromisoformat(AUSGABE_START)
+    except ValueError:
+        return 1
+    return max(1, (now.date() - start).days + 1)
+
+
 def rendern(d: dict, medien: dict, now: dt.datetime, modus: str) -> str:
     jinja = Environment(loader=FileSystemLoader(ROOT),
                         autoescape=select_autoescape(["html", "j2"]))
     jinja.filters["absaetze"] = absaetze
+    jinja.filters["roemisch"] = roemisch
 
     def src(cid: str) -> str:
         if modus == "cid":
@@ -397,7 +437,8 @@ def rendern(d: dict, medien: dict, now: dt.datetime, modus: str) -> str:
 
     return jinja.get_template("template.html.j2").render(
         d=d, gruppen=gruppieren(d.get("schlagzeilen")), titel=TITLE,
-        datum=datum_de(now), uhrzeit=now.strftime("%H:%M"), modell=MODEL, src=src)
+        datum=datum_de(now), uhrzeit=now.strftime("%H:%M"), modell=MODEL, src=src,
+        medien=medien, nr=ausgabe_nr(now), lesezeit=lesezeit(d))
 
 
 def klartext(d: dict, now: dt.datetime) -> str:
@@ -435,7 +476,7 @@ def senden(html_mail: str, html_datei: str, text: str, medien: dict, now: dt.dat
     payload = {
         "personalizations": [{"to": [{"email": e}]} for e in empfaenger],
         "from": {"email": absender, "name": env("MAIL_FROM_NAME", TITLE)},
-        "subject": f"{TITLE} | {datum_de(now)}",
+        "subject": f"{TITLE} Nr. {ausgabe_nr(now)} | {datum_de(now)}",
         "content": [{"type": "text/plain", "value": text},
                     {"type": "text/html", "value": html_mail}],
         "attachments": anhaenge,

@@ -18,7 +18,7 @@
   @media (max-width: 660px) {
     .wrap { width:100% !important; }
     .pad { padding-left:20px !important; padding-right:20px !important; }
-    .kopf { font-size:38px !important; }
+    .kopf { font-size:34px !important; }
     .seite { display:none !important; }
   }
 </style>
@@ -31,23 +31,38 @@
 <table role="presentation" class="wrap" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#FFFFFF;">
 
 <!-- Kopf -->
-<tr><td class="pad" style="padding:30px 32px 0 32px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{%- set ns = namespace(n=0) -%}
+<tr><td class="pad" align="center" style="padding:34px 32px 0 32px;">
+  {% if medien.logo %}
+  <img src="{{ src('logo') }}" width="440" alt="{{ titel }}"
+       style="display:block;margin:0 auto;width:440px;max-width:100%;height:auto;border:0;">
+  <div style="{{ serif }}font-size:16px;font-style:italic;color:{{ muted }};padding-top:8px;">Die Lage am Morgen, von allen Seiten betrachtet</div>
+  {% else %}
+  <div class="kopf" style="{{ serif }}font-size:50px;line-height:1.05;letter-spacing:6px;color:{{ ink }};padding:10px 0 4px 0;">{{ titel }}</div>
+  {% endif %}
+</td></tr>
+<tr><td class="pad" style="padding:20px 32px 0 32px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid {{ ink }};border-bottom:1px solid {{ ink }};">
     <tr>
-      <td style="{{ serif }}font-size:14px;color:{{ muted }};font-style:italic;">{{ datum }}</td>
-      <td class="seite" align="right" style="{{ serif }}font-size:14px;color:{{ muted }};font-style:italic;">Berlin, Stand {{ uhrzeit }} Uhr</td>
+      <td style="{{ serif }}font-size:14px;font-style:italic;color:{{ muted }};padding:7px 0;">{{ datum }}</td>
+      <td class="seite" align="center" style="{{ serif }}font-size:14px;color:{{ accent }};padding:7px 0;">Nr. {{ nr }}</td>
+      <td align="right" style="{{ serif }}font-size:14px;font-style:italic;color:{{ muted }};padding:7px 0;">Lesezeit etwa {{ lesezeit }} Min.</td>
     </tr>
   </table>
-  <div class="kopf" style="{{ serif }}font-size:50px;line-height:1.05;color:{{ ink }};padding:10px 0 12px 0;">{{ titel }}</div>
-  <div style="border-top:4px double {{ ink }};height:0;line-height:0;font-size:0;">&nbsp;</div>
   {% if d.lage_in_einem_satz %}
-  <p style="{{ serif }}font-size:21px;line-height:1.45;font-style:italic;color:{{ ink }};margin:18px 0 6px 0;">{{ d.lage_in_einem_satz }}</p>
+  <p style="{{ serif }}font-size:22px;line-height:1.45;font-style:italic;color:{{ ink }};margin:22px 0 10px 0;">{{ d.lage_in_einem_satz }}</p>
+  {% endif %}
+  {% if d.hintergrund %}
+  <p style="{{ serif }}font-size:15px;line-height:1.5;color:{{ muted }};margin:0 0 6px 0;">
+    <span style="font-style:italic;">In dieser Ausgabe:</span>
+    {% for h in d.hintergrund %}{{ h.titel }}{% if not loop.last %}; {% endif %}{% endfor %}
+  </p>
   {% endif %}
 </td></tr>
 
 <!-- Die Meldungen -->
 <tr><td class="pad" style="padding:8px 32px 0 32px;">
-  <h2 style="{{ h_sec }}">Die Meldungen</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Die Meldungen</h2>
   {% for region, items in gruppen %}
   <div style="{{ serif }}font-size:17px;font-style:italic;color:{{ accent }};padding:14px 0 2px 0;">{{ region }}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -68,7 +83,7 @@
 <!-- Hintergrund -->
 {% if d.hintergrund %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  <h2 style="{{ h_sec }}">Hintergrund</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Hintergrund</h2>
 </td></tr>
 {% for h in d.hintergrund %}
 <tr><td class="pad" style="padding:16px 32px 6px 32px;">
@@ -135,7 +150,7 @@
 <!-- Am Horizont -->
 {% if d.am_horizont %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  <h2 style="{{ h_sec }}">Am Horizont</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Am Horizont</h2>
   <p style="{{ serif }}font-size:15px;font-style:italic;color:{{ muted }};margin:4px 0 4px 0;">Was sich abzeichnet. Die Kästchen zeigen, wie deutlich das Signal ist.</p>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
     {% for r in d.am_horizont %}
@@ -154,7 +169,7 @@
 <!-- Termine -->
 {% if d.termine %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  <h2 style="{{ h_sec }}">Termine</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Termine</h2>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
     {% for t in d.termine %}
     <tr>
@@ -169,7 +184,7 @@
 <!-- Zum Hören -->
 {% if d.hoertipps %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  <h2 style="{{ h_sec }}">Zum Hören</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Zum Hören</h2>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
     {% for p in d.hoertipps %}
     <tr>
@@ -198,8 +213,12 @@
 {% endif %}
 
 <!-- Fuß -->
-<tr><td class="pad" style="padding:34px 32px 30px 32px;">
+<tr><td class="pad" style="padding:38px 32px 30px 32px;">
+  {% if medien.zeichen %}
+  <img src="{{ src('zeichen') }}" width="60" height="60" alt="" style="display:block;margin:0 auto 12px auto;width:60px;height:60px;border:0;">
+  {% endif %}
   <div style="border-top:1px solid {{ rule }};padding-top:14px;{{ serif }}font-size:13px;line-height:1.5;color:{{ muted }};">
+    {{ titel }} Nr. {{ nr }}, Stand {{ uhrzeit }} Uhr Berliner Zeit.
     Recherchiert und verfasst von Claude ({{ modell }}) aus öffentlich zugänglichen Quellen. Einordnungen und Lesarten sind maschinell erstellt und können Fehler enthalten; vor Entscheidungen bitte die verlinkten Originalquellen prüfen. Bilder über Wikipedia / Wikimedia Commons, Lizenzangaben auf den verlinkten Seiten.
   </div>
 </td></tr>

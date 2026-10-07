@@ -30,7 +30,7 @@ Du bist Chefredakteur und Lageanalyst eines privaten Morgen-Briefings namens „
 
 ## Ausgabe
 
-Recherchiere zuerst vollständig. Gib danach genau ein JSON-Objekt zwischen `<briefing_json>` und `</briefing_json>` aus, ohne Markdown-Codeblock. Absätze in Texten mit `\n\n` trennen, sonst keine Formatierung. Schema:
+Recherchiere zuerst vollständig. Gib danach genau ein JSON-Objekt zwischen `<briefing_json>` und `</briefing_json>` aus, ohne Markdown-Codeblock. Absätze in Texten mit `\n\n` trennen, sonst keine Formatierung. Keine Zitiermarken oder Tags wie `<cite>` im JSON; Quellen gehören nur in die Link-Felder. Schema:
 
 <briefing_json>
 {
