@@ -2,14 +2,16 @@
 
 *Circumspectio* (lat.): Umsicht, das Ringsum-Schauen, das Abwägen von allen Seiten.
 
-Jeden Morgen um 7:00 Uhr (Berlin) recherchiert Claude (Sonnet 5.5, Effort „high“) per Websuche die Nachrichtenlage, schreibt das Briefing und SendGrid stellt es zu. Alles läuft als GitHub Action, ohne eigenen Server.
+Ziel ist der morgendliche Versand um 07:00 Uhr in `Europe/Berlin`. Claude recherchiert vorher, SendGrid bekommt die fertige Ausgabe mit `send_at` für 07:00 Uhr. Weder GitHub Actions noch E-Mail-Zustellung garantieren eine genaue Ankunft im Posteingang. Für zuverlässigere Vorbereitung gibt es einen unabhängigen systemd-Zeitplan, siehe [Betrieb und Untersuchung](docs/reliability.md).
 
 ## Was im Repository liegt
 
 | Datei | Zweck |
 |---|---|
 | `.github/workflows/circumspectio.yml` | Zeitplan und Ablauf in GitHub Actions |
-| `briefing.py` | Recherche über die Claude API, Linkprüfung, Bilder, Diagramme, Versand |
+| `briefing.py` | Recherche, Darstellung, SendGrid und sicherer Layouttest |
+| `daily.py` | Produktionslauf mit dauerhaftem Tagesstatus, Versandkontrolle und Deadline-Check |
+| `deploy/` | systemd-Zeitgeber und Statusprüfung außerhalb von GitHub Actions |
 | `prompt.md` | Redaktionsanweisung an Claude: Rubriken, Quellen, Haltung. Hier ändern Sie den Inhalt. |
 | `template.html.j2` | Gestaltung der Mail (Times New Roman, Zeitungslayout). Hier ändern Sie das Aussehen. |
 | `assets/` | Logo (`logo.png`, `zeichen.png`) samt Vorlagen `logo.svg`, `zeichen.svg` und Erzeugungsskript |
@@ -60,23 +62,32 @@ Reiter **Variables** (alles optional, sonst gelten die Standardwerte):
 | `CLAUDE_MODEL` | `claude-sonnet-5-5` | Neuestes Sonnet. Bei einem Nachfolgemodell nur hier ändern. |
 | `CLAUDE_EFFORT` | `high` | `medium` ist schneller und günstiger, etwas weniger gründlich |
 | `MAX_SEARCHES` | `25` | Höchstzahl Websuchen pro Ausgabe |
-| `SEND_HOUR` | `7` | Zustellstunde (Berlin) |
+| `SEND_HOUR` | `7` | Versandziel (Berlin). Bei Änderung auch beide Zeitpläne und Prüfzeiten anpassen. |
 | `SENDGRID_API_HOST` | `https://api.sendgrid.com` | EU-Konten: `https://api.eu.sendgrid.com` |
 
-## Schritt 5: Testen
+## Schritt 5: Sicher testen
 
-1. Reiter **Actions**. Falls GitHub fragt, Workflows aktivieren.
-2. Links **Circumspectio** wählen → **Run workflow** → Häkchen bei „Nur erzeugen, nicht senden“ → **Run workflow**.
-3. Nach 5 bis 15 Minuten ist der Lauf grün. Unten auf der Lauf-Seite unter **Artifacts** die ZIP-Datei laden und `circumspectio.html` im Browser öffnen.
-4. Gefällt das Ergebnis: denselben Ablauf ohne Häkchen starten. Manuelle Läufe werden sofort verschickt.
+1. **Actions → Circumspectio → Run workflow** öffnen.
+2. „Offline-Layouttest“ aktiviert lassen. Der Standardtest verwendet `beispiel.json`, ruft Claude nicht auf, lädt keine Bilder herunter und versendet nichts.
+3. Das HTML aus dem Ausgabe-Artefakt öffnen.
+4. Echten Betrieb erst nach Prüfung der Konfiguration aktivieren. Das Abwählen des Layouttests erlaubt API-Kosten und echten Versand. Auch manuelle Produktionsläufe beachten den Tagesstatus und das Zeitfenster. Sie erzwingen keinen Sofortversand.
 
-Ab jetzt läuft es täglich von selbst.
+Automatisierte Tests ohne Netzwerk, API-Kosten und E-Mails:
+
+```bash
+pip install -r requirements.txt
+python -m unittest discover -s tests -v
+```
 
 ## So funktioniert der Zeitplan
 
-GitHub rechnet in UTC und kennt keine Sommerzeit. Der Workflow startet deshalb zweimal (04:17 und 05:17 UTC). Das Skript erkennt, welcher Lauf heute eine Stunde vor 7 Uhr Berliner Zeit liegt, und beendet den anderen nach wenigen Sekunden. Das fertige Briefing wird bei SendGrid auf genau 7:00 Uhr terminiert. GitHub startet geplante Läufe manchmal mit Verzögerung; der Puffer von rund 40 Minuten fängt das ab. Ist das Briefing erst nach 7 Uhr fertig, geht es sofort raus.
+Die Actions-Crons laufen um 03:17 und 04:17 UTC. Im Sommer ist das 05:17 und 06:17 Berlin, im Winter 04:17 und 05:17 Berlin. `daily.py` lässt Vorbereitung von 05:00 bis 12:00 Berlin zu. Der erste zulässige Lauf legt vor der Recherche einen atomaren Tagesstatus auf dem separaten Branch `circumspectio-state` an. Weitere Läufe desselben Tages erzeugen keine zweite Ausgabe. Ein Fenster außerhalb dieser Zeiten wird sichtbar als `outside_window` protokolliert.
 
-Für eine andere Uhrzeit, z. B. 6 Uhr: `SEND_HOUR` auf `6` setzen und in der Workflow-Datei beide Cron-Stunden um eins verringern (`17 3` und `17 4`).
+SendGrid wird mit der tatsächlichen Fertigstellungszeit verglichen. Vor 07:00 Uhr wird auf 07:00 Uhr terminiert, danach geht die Ausgabe sofort raus und wird als verspätet markiert. Nach Mitternacht wird eine am Vortag begonnene Ausgabe nicht mehr versendet. HTTP 202 bedeutet nur angenommen, nicht zugestellt.
+
+**Actions bleibt eine Übergangslösung.** Der zusätzliche Puffer kann Verzögerungen abfangen, beseitigt sie aber nicht. Für möglichst zuverlässige Vorbereitung den [unabhängigen Zeitgeber einrichten](docs/reliability.md#unabhängiger-zeitgeber) und anschließend die Actions-Crons entfernen. Ein externer Aufruf von `workflow_dispatch` allein beseitigt Wartezeiten auf Actions-Runnern nicht.
+
+Tagesstatus und Wiederanlauf, überwachte Deadlines sowie der Nachweis tatsächlicher Zustellung stehen in [docs/reliability.md](docs/reliability.md).
 
 ## Was das Skript für Qualität tut
 
@@ -96,7 +107,7 @@ Für eine andere Uhrzeit, z. B. 6 Uhr: `SEND_HOUR` auf `6` setzen und in der Wor
 - **Layout testen ohne Kosten** (lokal, Python 3.11+):
   ```
   pip install -r requirements.txt
-  python briefing.py --aus-json beispiel.json --dry-run
+  python briefing.py --aus-json beispiel.json --dry-run --offline
   ```
   Ergebnis: `out/circumspectio.html`. Mit einer echten Ausgabe aus einem Artefakt (`briefing.json`) geht das genauso.
 
@@ -121,3 +132,4 @@ Pro Ausgabe fallen Token-Kosten für Claude Sonnet 5.5 sowie eine Gebühr pro We
 ## Hinweis zu Bezahlschranken
 
 Das Briefing verlinkt immer auf die Originalartikel. Bei FAZ, FT, WSJ usw. öffnen Sie diese mit Ihren eigenen Abos. Umgehungsdienste für Bezahlschranken nutzt das Skript bewusst nicht.
+

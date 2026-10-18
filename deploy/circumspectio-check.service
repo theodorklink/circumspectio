@@ -1,0 +1,20 @@
+[Unit]
+Description=Check today's on-time SendGrid acceptance (not inbox delivery)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=circumspectio
+Group=circumspectio
+WorkingDirectory=/opt/circumspectio
+EnvironmentFile=/etc/circumspectio.env
+ExecStart=/opt/circumspectio/.venv/bin/python daily.py --check
+TimeoutStartSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+Environment=PYTHONDONTWRITEBYTECODE=1
+StandardOutput=journal
+StandardError=journal

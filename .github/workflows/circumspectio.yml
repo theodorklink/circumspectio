@@ -2,14 +2,22 @@ name: Circumspectio
 
 on:
   schedule:
+    # Best effort only. Primary starts at 05:17 Berlin in either season.
+    - cron: "17 3 * * *"
     - cron: "17 4 * * *"
-    - cron: "17 5 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Nur erzeugen, nicht senden (Ergebnis als Artefakt herunterladen)"
+        description: "Offline-Layouttest ohne API-Kosten und ohne Versand"
+        type: boolean
+        default: true
+      retry_failed:
+        description: "Fehler vor dem Versand erneut versuchen (verursacht API-Kosten)"
         type: boolean
         default: false
+
+permissions:
+  contents: write  # Daily atomic claim on circumspectio-state.
 
 concurrency:
   group: circumspectio
@@ -21,6 +29,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -33,7 +43,12 @@ jobs:
       - name: Abhängigkeiten
         run: pip install -q -r requirements.txt
 
+      - name: Offline-Layouttest
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+        run: python briefing.py --aus-json beispiel.json --dry-run --offline
+
       - name: Briefing erzeugen und senden
+        if: github.event_name == 'schedule' || !inputs.dry_run
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
@@ -44,10 +59,12 @@ jobs:
           MAX_SEARCHES: ${{ vars.MAX_SEARCHES || '25' }}
           SEND_HOUR: ${{ vars.SEND_HOUR || '7' }}
           SENDGRID_API_HOST: ${{ vars.SENDGRID_API_HOST || 'https://api.sendgrid.com' }}
-          CRON_SCHEDULE: ${{ github.event.schedule }}
-          SOFORT: ${{ github.event_name == 'workflow_dispatch' }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: python briefing.py
+          GITHUB_TOKEN: ${{ github.token }}
+          RETRY_FAILED: ${{ inputs.retry_failed }}
+        run: |
+          args=(--live)
+          if [[ "$RETRY_FAILED" == "true" ]]; then args+=(--retry-failed); fi
+          python daily.py "${args[@]}"
 
       - name: Ausgabe sichern
         if: always()
@@ -57,3 +74,4 @@ jobs:
           path: out/
           retention-days: 30
           if-no-files-found: ignore
+

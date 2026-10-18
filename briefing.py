@@ -82,26 +82,6 @@ def datum_de(d: dt.datetime) -> str:
 # ---------------------------------------------------------------------------
 # 1. Zeitfenster
 # ---------------------------------------------------------------------------
-def im_zeitfenster(now: dt.datetime) -> bool:
-    """GitHub-Cron läuft in UTC. Der Workflow startet zweimal (für Sommer- und
-    Winterzeit); hier wird der Lauf gewählt, der eine Stunde vor SEND_HOUR liegt."""
-    if env("SOFORT", "false").lower() == "true":
-        return True
-    sched = env("CRON_SCHEDULE", "")
-    if not sched:
-        return True  # lokaler Lauf
-    offset_h = int(now.utcoffset().total_seconds() // 3600)
-    erwartet = (SEND_HOUR - 1 - offset_h) % 24
-    try:
-        cron_stunde = int(sched.split()[1])
-    except (IndexError, ValueError):
-        return True
-    if cron_stunde != erwartet:
-        print(f"Übersprungen: Cron '{sched}' ist heute nicht zuständig (erwartet UTC-Stunde {erwartet}).")
-        return False
-    return True
-
-
 # ---------------------------------------------------------------------------
 # 2. Recherche mit Claude
 # ---------------------------------------------------------------------------
@@ -339,7 +319,7 @@ def diagramm_png(spec: dict) -> bytes | None:
     return buf.getvalue()
 
 
-def medien_erzeugen(d: dict) -> dict[str, dict]:
+def medien_erzeugen(d: dict, *, offline: bool = False) -> dict[str, dict]:
     medien: dict[str, dict] = {}
     for cid, datei in (("logo", "logo.png"), ("zeichen", "zeichen.png")):
         pfad = ROOT / "assets" / datei
@@ -347,7 +327,7 @@ def medien_erzeugen(d: dict) -> dict[str, dict]:
             medien[cid] = {"data": pfad.read_bytes(), "mime": "image/png", "datei": datei}
     for i, h in enumerate(d.get("hintergrund") or [], start=1):
         b = h.get("bild_wikipedia")
-        if b and b.get("titel"):
+        if b and b.get("titel") and not offline:
             treffer = wiki_bild(b["titel"], b.get("sprache", "de"))
             if treffer:
                 raw, seite, artikel = treffer
@@ -460,7 +440,8 @@ def klartext(d: dict, now: dt.datetime) -> str:
 # ---------------------------------------------------------------------------
 # 6. Versand über SendGrid
 # ---------------------------------------------------------------------------
-def senden(html_mail: str, html_datei: str, text: str, medien: dict, now: dt.datetime) -> None:
+def senden(html_mail: str, html_datei: str, text: str, medien: dict, now: dt.datetime,
+           *, clock=None, before_send=None) -> dict:
     key = env("SENDGRID_API_KEY", required=True)
     absender = env("MAIL_FROM", required=True)
     empfaenger = [e.strip() for e in env("MAIL_TO", required=True).split(",") if e.strip()]
@@ -480,21 +461,38 @@ def senden(html_mail: str, html_datei: str, text: str, medien: dict, now: dt.dat
         "content": [{"type": "text/plain", "value": text},
                     {"type": "text/html", "value": html_mail}],
         "attachments": anhaenge,
+        "custom_args": {"circumspectio_date": now.date().isoformat()},
         # Ohne Tracking: Links führen direkt zu FAZ, FT usw. (Login bleibt erhalten)
         "tracking_settings": {"click_tracking": {"enable": False, "enable_text": False},
                               "open_tracking": {"enable": False}},
     }
-    if env("SOFORT", "false").lower() != "true":
-        ziel = now.replace(hour=SEND_HOUR, minute=0, second=0, microsecond=0)
-        if (ziel - now).total_seconds() > 120:
+    # The issue date stays fixed. Compare the target with the actual finish time.
+    ziel = now.astimezone(TZ).replace(hour=SEND_HOUR, minute=0, second=0, microsecond=0)
+    def plan():
+        aktuell = (clock or (lambda: dt.datetime.now(TZ)))().astimezone(TZ)
+        if aktuell.date() != ziel.date():
+            raise RuntimeError("Ausgabe veraltet: kein Versand an einem anderen Berliner Tag")
+        payload.pop("send_at", None)
+        if aktuell < ziel:
             payload["send_at"] = int(ziel.timestamp())
-            print(f"Versand terminiert auf {ziel:%H:%M} Uhr.")
+        return {"target_at": ziel.isoformat(), "submitted_at": aktuell.isoformat(),
+                "send_at": payload.get("send_at"),
+                "late_seconds": max(0, int((aktuell-ziel).total_seconds()))}
+
+    receipt = plan()
+    if before_send:
+        before_send(receipt)  # Persist the intent before the non-idempotent POST.
+        receipt = plan()  # The ledger write itself may have crossed the deadline.
 
     r = requests.post(f"{host}/v3/mail/send", json=payload, timeout=60,
                       headers={"Authorization": f"Bearer {key}"})
     if r.status_code != 202:
-        sys.exit(f"SendGrid-Fehler {r.status_code}: {r.text}")
+        raise RuntimeError(f"SendGrid-Fehler {r.status_code}")
+    accepted = (clock or (lambda: dt.datetime.now(TZ)))().astimezone(TZ)
     print(f"An {len(empfaenger)} Empfänger übergeben.")
+    return {**receipt, "accepted_at": accepted.isoformat(),
+            "late_seconds": max(0, int((accepted-ziel).total_seconds())),
+            "message_id": r.headers.get("X-Message-Id"), "http_status": 202}
 
 
 # ---------------------------------------------------------------------------
@@ -502,33 +500,25 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=TITLE)
     ap.add_argument("--aus-json", help="Vorhandenes Briefing-JSON verwenden (keine API-Kosten)")
     ap.add_argument("--dry-run", action="store_true", help="Nur erzeugen, nicht senden")
+    ap.add_argument("--offline", action="store_true", help="Auch keine Bilder herunterladen")
     args = ap.parse_args()
     dry = args.dry_run or env("DRY_RUN", "false").lower() == "true"
+    if not dry or not args.aus_json:
+        ap.error("Layouttest benötigt --aus-json und --dry-run. Produktion: python daily.py --live")
 
     now = dt.datetime.now(TZ)
     OUT.mkdir(exist_ok=True)
 
-    if args.aus_json:
-        daten, gesehen = json.loads(Path(args.aus_json).read_text(encoding="utf-8")), None
-    else:
-        if not im_zeitfenster(now):
-            return
-        daten, gesehen = recherchieren(now)
-        (OUT / "briefing.json").write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    if gesehen is not None:
-        links_pruefen(daten, gesehen)
-    medien = medien_erzeugen(daten)
+    daten = json.loads(Path(args.aus_json).read_text(encoding="utf-8"))
+    medien = medien_erzeugen(daten, offline=args.offline)
     html_mail = rendern(daten, medien, now, "cid")
     html_datei = rendern(daten, medien, now, "data")
     (OUT / "circumspectio.html").write_text(html_datei, encoding="utf-8")
     print(f"HTML erzeugt: {len(html_mail) // 1024} KB (Mail), {len(medien)} Bilder/Grafiken.")
 
-    if dry:
-        print("Dry-Run: nichts versendet. Ergebnis in out/circumspectio.html")
-        return
-    senden(html_mail, html_datei, klartext(daten, now), medien, now)
+    print("Dry-Run: nichts versendet. Ergebnis in out/circumspectio.html")
 
 
 if __name__ == "__main__":
     main()
+

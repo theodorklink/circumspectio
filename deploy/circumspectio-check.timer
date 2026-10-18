@@ -1,0 +1,13 @@
+[Unit]
+Description=Check preparation deadline and morning acceptance
+
+[Timer]
+OnCalendar=*-*-* 06:50:00 Europe/Berlin
+OnCalendar=*-*-* 07:05:00 Europe/Berlin
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=true
+Unit=circumspectio-check.service
+
+[Install]
+WantedBy=timers.target
