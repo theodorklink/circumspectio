@@ -2,17 +2,18 @@
 
 *Circumspectio* (lat.): Umsicht, das Ringsum-Schauen, das Abwägen von allen Seiten.
 
-Jeden Morgen um 7:00 Uhr (Berlin) recherchiert Claude (Sonnet 5.5, Effort „high“) per Websuche die Nachrichtenlage, schreibt das Briefing und SendGrid stellt es zu. Alles läuft als GitHub Action, ohne eigenen Server.
+Jeden Sonntag um 7:00 Uhr (Berlin) erscheint eine Wochenausgabe im Stil einer Sonntagszeitung: Claude (Sonnet 5.5, Effort „high“) recherchiert per Websuche die zurückliegende Woche, ordnet sie ein (wer will was, wie sehen es die verschiedenen Seiten, was passiert hinter den Kulissen) und SendGrid stellt sie zu. Keine Eilmeldungen, keine Fotos. Damit sich nichts mit der Vorwoche doppelt, liest Claude vor jeder Ausgabe die letzten drei Ausgaben aus `archiv/`. Alles läuft als GitHub Action, ohne eigenen Server.
 
 ## Was im Repository liegt
 
 | Datei | Zweck |
 |---|---|
 | `.github/workflows/circumspectio.yml` | Zeitplan und Ablauf in GitHub Actions |
-| `briefing.py` | Recherche über die Claude API, Linkprüfung, Bilder, Diagramme, Versand |
+| `briefing.py` | Recherche über die Claude API, Abgleich mit den Vorwochen, Linkprüfung, Diagramme, Versand |
 | `prompt.md` | Redaktionsanweisung an Claude: Rubriken, Quellen, Haltung. Hier ändern Sie den Inhalt. |
 | `template.html.j2` | Gestaltung der Mail (Times New Roman, Zeitungslayout). Hier ändern Sie das Aussehen. |
 | `assets/` | Logo (`logo.png`, `zeichen.png`) samt Vorlagen `logo.svg`, `zeichen.svg` und Erzeugungsskript |
+| `archiv/` | Jede versendete Ausgabe als JSON. Wird automatisch angelegt und dient als Gedächtnis gegen Doppelungen. |
 | `beispiel.json` | Testdaten, um das Layout ohne API-Kosten anzusehen |
 | `requirements.txt` | Python-Pakete |
 
@@ -59,8 +60,9 @@ Reiter **Variables** (alles optional, sonst gelten die Standardwerte):
 |---|---|---|
 | `CLAUDE_MODEL` | `claude-sonnet-5-5` | Neuestes Sonnet. Bei einem Nachfolgemodell nur hier ändern. |
 | `CLAUDE_EFFORT` | `high` | `medium` ist schneller und günstiger, etwas weniger gründlich |
-| `MAX_SEARCHES` | `25` | Höchstzahl Websuchen pro Ausgabe |
-| `SEND_HOUR` | `7` | Zustellstunde (Berlin) |
+| `MAX_SEARCHES` | `40` | Höchstzahl Websuchen pro Ausgabe |
+| `SEND_HOUR` | `7` | Zustellstunde am Sonntag (Berlin) |
+| `VORWOCHEN` | `3` | So viele frühere Ausgaben liest Claude gegen Doppelungen |
 | `SENDGRID_API_HOST` | `https://api.sendgrid.com` | EU-Konten: `https://api.eu.sendgrid.com` |
 
 ## Schritt 5: Testen
@@ -70,29 +72,31 @@ Reiter **Variables** (alles optional, sonst gelten die Standardwerte):
 3. Nach 5 bis 15 Minuten ist der Lauf grün. Unten auf der Lauf-Seite unter **Artifacts** die ZIP-Datei laden und `circumspectio.html` im Browser öffnen.
 4. Gefällt das Ergebnis: denselben Ablauf ohne Häkchen starten. Manuelle Läufe werden sofort verschickt.
 
-Ab jetzt läuft es täglich von selbst.
+Ab jetzt läuft es jeden Sonntag von selbst.
 
 ## So funktioniert der Zeitplan
 
-GitHub rechnet in UTC und kennt keine Sommerzeit. Der Workflow startet deshalb zweimal (04:17 und 05:17 UTC). Das Skript erkennt, welcher Lauf heute eine Stunde vor 7 Uhr Berliner Zeit liegt, und beendet den anderen nach wenigen Sekunden. Das fertige Briefing wird bei SendGrid auf genau 7:00 Uhr terminiert. GitHub startet geplante Läufe manchmal mit Verzögerung; der Puffer von rund 40 Minuten fängt das ab. Ist das Briefing erst nach 7 Uhr fertig, geht es sofort raus.
+GitHub rechnet in UTC und kennt keine Sommerzeit. Der Workflow startet sonntags zweimal (03:17 und 04:17 UTC). Das Skript erkennt, welcher Lauf zwei Stunden vor 7 Uhr Berliner Zeit liegt (also um 5:17 Uhr), und beendet den anderen nach wenigen Sekunden. Die fertige Ausgabe wird bei SendGrid auf genau 7:00 Uhr terminiert. Die Wochenrecherche ist umfangreicher als früher die Tagesausgabe; der Puffer von rund 1 Stunde 40 Minuten fängt das und verspätete GitHub-Starts ab. Ist die Ausgabe erst nach 7 Uhr fertig, geht sie sofort raus.
 
-Für eine andere Uhrzeit, z. B. 6 Uhr: `SEND_HOUR` auf `6` setzen und in der Workflow-Datei beide Cron-Stunden um eins verringern (`17 3` und `17 4`).
+Nach dem Versand legt der Workflow die Ausgabe als `archiv/JJJJ-MM-TT.json` im Repository ab (dafür hat er Schreibrecht, siehe `permissions` in der Workflow-Datei). Manuelle Testläufe mit „Nur erzeugen, nicht senden“ werden nicht archiviert.
+
+Für eine andere Uhrzeit, z. B. 8 Uhr: `SEND_HOUR` auf `8` setzen und in der Workflow-Datei beide Cron-Stunden um eins erhöhen (`17 4` und `17 5`). Der Wochentag steht am Ende der Cron-Zeile (`0` = Sonntag).
 
 ## Was das Skript für Qualität tut
 
 - **Links:** Es bleiben nur URLs stehen, die Claude in diesem Lauf tatsächlich in Suchergebnissen gefunden hat oder die erreichbar sind. Erfundene Links fliegen raus (im Log sichtbar als „Link verworfen“).
-- **Bilder:** Claude nennt passende Wikipedia-Artikel; das Skript lädt deren Hauptbild von Wikimedia Commons (freie Lizenzen) und bettet es direkt in die Mail ein. So erscheinen Bilder auch ohne „Bilder nachladen“.
-- **Schaubilder:** Diagramme aus belegten Zahlen (als Bild in der Mail) und Akteurskarten „Wer will was?“ als HTML-Tabelle.
+- **Keine Doppelungen:** Claude bekommt die Themen der letzten Ausgaben mit. Ein Thema der Vorwoche wird nur bei echter neuer Entwicklung wieder analysiert (markiert als „Neu seit vergangener Woche“); kleinere Fortschritte landen kurz unter „Nachgehakt“.
+- **Keine Fotos:** Nur Diagramme aus belegten Zahlen, die Akteurskarte „Wer will was?“ und die Rubrik „Von allen Seiten“ als HTML.
 - **HTML-Datei:** Jede Mail enthält zusätzlich die komplette Ausgabe als HTML-Anhang. Das hilft, wenn Gmail lange Mails mit „Nachricht gekürzt“ abschneidet. Abschalten mit der Variable `HTML_ANHANG` = `false`.
 - **Tracking aus:** Klick- und Öffnungstracking ist abgeschaltet. Links führen direkt zu FAZ, FT, WSJ usw., wo Sie mit Ihren Abos eingeloggt sind.
-- **Archiv:** Jede Ausgabe (JSON und HTML) liegt 30 Tage als Artefakt beim jeweiligen Lauf.
+- **Archiv:** Jede versendete Ausgabe liegt dauerhaft als JSON in `archiv/`, zusätzlich JSON und HTML 90 Tage als Artefakt beim jeweiligen Lauf.
 
 ## Anpassen
 
 - **Inhalt, Rubriken, Quellen, Länge:** `prompt.md` bearbeiten. Beispiel: eine Rubrik „Märkte“ oder „Naher Osten“ ergänzen, Quellen hinzufügen, Umfang ändern. Neue Felder müssen auch ins Template.
 - **Aussehen:** `template.html.j2`. Farben stehen oben in der Datei.
 - **Logo:** liegt als Bild in `assets/`, weil Gmail und Outlook SVG- und CSS-Grafiken nicht zuverlässig anzeigen. Fehlt der Ordner, erscheint der Titel als Schrift. Das Monogramm und der Schriftzug sind in Cinzel gesetzt, einer frei lizenzierten Schrift nach römischen Inschriften (Lizenz in `assets/Cinzel-OFL.txt`).
-- **Ausgabennummer:** zählt ab dem Datum in der Variable `AUSGABE_START` (Standard: 2026-10-07 = Nr. 1).
+- **Ausgabennummer:** zählt wöchentlich ab dem Datum in der Variable `AUSGABE_START` (Standard: Sonntag, 2026-11-01 = Nr. 1).
 - **Layout testen ohne Kosten** (lokal, Python 3.11+):
   ```
   pip install -r requirements.txt
@@ -102,7 +106,7 @@ Für eine andere Uhrzeit, z. B. 6 Uhr: `SEND_HOUR` auf `6` setzen und in der Wor
 
 ## Kosten
 
-Pro Ausgabe fallen Token-Kosten für Claude Sonnet 5.5 sowie eine Gebühr pro Websuche an; die aktuellen Preise stehen auf https://claude.com/pricing. Größte Stellschrauben: `CLAUDE_EFFORT` auf `medium` und `MAX_SEARCHES` senken. Den tatsächlichen Verbrauch pro Lauf zeigt das Log („input=…, output=…, suchen=…“) und die Usage-Seite der Claude Console. GitHub Actions ist für private Repositories im Rahmen des Freikontingents (2.000 Minuten/Monat) ausreichend; ein Lauf braucht etwa 5 bis 15 Minuten.
+Pro Ausgabe fallen Token-Kosten für Claude Sonnet 5.5 sowie eine Gebühr pro Websuche an; die aktuellen Preise stehen auf https://claude.com/pricing. Größte Stellschrauben: `CLAUDE_EFFORT` auf `medium` und `MAX_SEARCHES` senken. Den tatsächlichen Verbrauch pro Lauf zeigt das Log („input=…, output=…, suchen=…“) und die Usage-Seite der Claude Console. Weil nur noch einmal pro Woche recherchiert wird, sinken die Kosten gegenüber der Tagesausgabe deutlich, auch wenn eine einzelne Wochenausgabe mehr Suchen braucht. GitHub Actions reicht im Freikontingent; ein Lauf braucht etwa 10 bis 30 Minuten.
 
 ## Fehlersuche
 
@@ -117,6 +121,7 @@ Pro Ausgabe fallen Token-Kosten für Claude Sonnet 5.5 sowie eine Gebühr pro We
 | Workflow startet nicht automatisch | Die Datei muss im Standard-Branch (`main`) liegen. Unter Actions prüfen, ob der Workflow aktiviert ist. |
 | Gmail zeigt „Nachricht gekürzt“ | Auf „Gesamte Nachricht anzeigen“ tippen oder den HTML-Anhang öffnen. |
 | Ein Link fehlt | Er wurde als nicht belegt verworfen. Das ist Absicht. |
+| Archiv-Schritt schlägt fehl (`403`) | Settings → Actions → General → Workflow permissions auf „Read and write permissions“ stellen. |
 
 ## Hinweis zu Bezahlschranken
 

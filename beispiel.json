@@ -1,33 +1,51 @@
 {
-  "lage_in_einem_satz": "Beispielausgabe: Dieser Satz verdichtet sonst die Lage des Morgens in einer Zeile.",
-  "schlagzeilen": [
-    {"region": "Deutschland", "titel": "Beispielmeldung aus Berlin", "kurz": "Ein bis zwei Sätze zur Meldung und warum sie zählt. Hier steht im echten Briefing der Kern der Nachricht.", "quelle": "tagesschau.de", "link": "https://www.tagesschau.de"},
-    {"region": "Deutschland", "titel": "Zweite Meldung aus Deutschland", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "FAZ", "link": "https://www.faz.net"},
-    {"region": "Europa", "titel": "Beispielmeldung aus Brüssel", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "Financial Times", "link": "https://www.ft.com"},
-    {"region": "Welt", "titel": "Beispielmeldung aus Washington", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "Wall Street Journal", "link": "https://www.wsj.com"},
-    {"region": "Welt", "titel": "Beispielmeldung aus Asien", "kurz": "Kurze Einordnung in einem Satz.", "quelle": "BBC", "link": "https://www.bbc.com/news"}
+  "woche_in_einem_satz": "Beispielausgabe: Dieser Satz verdichtet die Woche, hier nur als Platzhalter für das Layout.",
+  "leitartikel_titel": "Beispiel: Was die Woche zusammenhält",
+  "leitartikel": "Hier steht der Leitartikel der Wochenausgabe, etwa 200 bis 300 Wörter. Er zählt nicht die Meldungen auf, sondern verbindet sie zu einem Gedankengang: Welche größere Bewegung ist in dieser Woche sichtbar geworden, und wie hängen die Ereignisse in Berlin, Brüssel und anderswo zusammen?\n\nDieser zweite Absatz zeigt, wie Absätze dargestellt werden. Alle Inhalte dieser Datei sind Platzhalter für die Layoutprüfung und keine echten Nachrichten.",
+  "die_woche": [
+    {"region": "Deutschland", "titel": "Beispielmeldung Deutschland", "kurz": "Was geschah, in zwei bis drei Sätzen. Und warum es über den Tag hinaus zählt.", "quelle": "tagesschau.de", "link": "https://www.tagesschau.de"},
+    {"region": "Deutschland", "titel": "Zweite Beispielmeldung", "kurz": "Kurz und eingeordnet.", "quelle": "Deutschlandfunk", "link": "https://www.deutschlandfunk.de"},
+    {"region": "Europa", "titel": "Beispielmeldung Europa", "kurz": "Was in Brüssel oder einer anderen Hauptstadt entschieden wurde und was daraus folgt.", "quelle": "FAZ", "link": "https://www.faz.net"},
+    {"region": "Welt", "titel": "Beispielmeldung Welt", "kurz": "Eine Entwicklung außerhalb Europas, mit Einordnung.", "quelle": "BBC", "link": "https://www.bbc.com/news"}
   ],
-  "hintergrund": [
+  "analysen": [
     {
-      "titel": "Beispiel-Hintergrundstück mit Bild, Diagramm und Akteurskarte",
-      "dachzeile": "Deutschland, Haushalt",
-      "text": "Im echten Briefing stehen hier 150 bis 250 Wörter Analyse.\n\nDer zweite Absatz ordnet ein und verbindet die Meldung mit größeren Linien.",
-      "hinter_den_kulissen": "Hier stehen Interessen, Signale und Lesarten. Spekulation wird ausdrücklich als solche gekennzeichnet.",
-      "worauf_achten": "Ein bis zwei Sätze zu den Indikatoren der nächsten Tage.",
-      "links": [{"quelle": "FAZ", "titel": "Beispielartikel", "url": "https://www.faz.net"}],
-      "bild_wikipedia": {"titel": "Reichstagsgebäude", "sprache": "de", "bildunterschrift": "Das Reichstagsgebäude in Berlin."},
-      "diagramm": {"typ": "balken", "titel": "Beispieldaten (fiktiv)", "einheit": "Mrd. Euro", "labels": ["2022", "2023", "2024", "2025", "2026"], "werte": [10, 12.5, 11.2, 14.8, 16.1], "quelle": "Beispiel"},
-      "akteure": {"titel": "Wer will was?", "akteure": [
-        {"name": "Akteur A", "position": "Öffentliche Position in einem Satz.", "interesse": "Eigentliches Interesse."},
-        {"name": "Akteur B", "position": "Öffentliche Position in einem Satz.", "interesse": "Eigentliches Interesse."}
-      ]}
+      "titel": "Beispielanalyse mit allen Elementen",
+      "dachzeile": "Geopolitik, Diplomatie",
+      "fortschreibung": "Ein Satz dazu, was sich gegenüber der Vorwoche verändert hat (erscheint nur, wenn das Thema schon lief).",
+      "text": "Erster Absatz der Analyse: Lage und Bedeutung.\n\nZweiter Absatz: Warum jetzt, welche Zwänge wirken, was folgt daraus. Alle Inhalte sind Platzhalter.",
+      "akteure": [
+        {"name": "Akteur A", "will": "Sein eigentliches Ziel in einem Satz.", "mittel": "Womit er es durchsetzen kann."},
+        {"name": "Akteur B", "will": "Ein gegenläufiges Interesse.", "mittel": "Wirtschaftlicher Druck, Verhandlungen."},
+        {"name": "Macht C (von außen)", "will": "Was sie aus der Lage gewinnen möchte.", "mittel": "Diplomatische Signale."}
+      ],
+      "von_allen_seiten": [
+        {"sicht": "Aus Washington", "lesart": "Wie das Geschehen dort gelesen und begründet wird."},
+        {"sicht": "Aus Peking", "lesart": "Eine konkurrierende Deutung, so dargestellt, wie die Seite sie selbst begründen würde."},
+        {"sicht": "Aus Brüssel", "lesart": "Die europäische Lesart."}
+      ],
+      "hinter_den_kulissen": "Interessen, Timing, Verhandlungskanäle, was zwischen den Zeilen steht. Spekulation wird als solche gekennzeichnet.",
+      "worauf_achten": "Ein Hinweis für die kommenden Wochen.",
+      "links": [{"quelle": "FT", "titel": "Beispiellink", "url": "https://www.ft.com"}],
+      "diagramm": {"typ": "balken", "titel": "Beispieldiagramm", "einheit": "Mrd. Euro", "labels": ["2022", "2023", "2024", "2025"], "werte": [12.5, 14.0, 17.2, 19.8], "quelle": "Platzhalter"}
     }
   ],
-  "am_horizont": [
-    {"titel": "Schwaches Signal", "text": "Zwei Sätze zu einer Entwicklung, die sich abzeichnet.", "signal": 1, "link": null},
-    {"titel": "Deutliches Signal", "text": "Zwei Sätze zu einer Entwicklung, die sich abzeichnet.", "signal": 3, "link": null}
+  "nachgehakt": [
+    {"titel": "Beispielthema der Vorwoche", "text": "Was sich seitdem bewegt hat, in ein bis zwei Sätzen.", "link": null}
   ],
-  "termine": [{"wann": "Heute, 10 Uhr", "was": "Beispieltermin"}],
-  "hoertipps": [{"sendung": "Deutschlandfunk, Der Tag", "titel": "Beispielepisode", "beschreibung": "Ein Satz, warum hörenswert.", "dauer": "28 Min.", "url": "https://www.deutschlandfunk.de"}],
-  "zitat": {"text": "Ein wörtlich belegtes Zitat steht hier.", "person": "Person", "kontext": "bei Anlass X", "url": null}
+  "am_horizont": [
+    {"titel": "Ein schwaches Signal", "text": "Was sich abzeichnet und warum es in Monaten wichtig sein könnte.", "signal": 1, "link": null},
+    {"titel": "Ein deutliches Signal", "text": "Eine Entwicklung, die klarer wird.", "signal": 3, "link": null}
+  ],
+  "die_kommende_woche": [
+    {"wann": "Dienstag", "was": "Beispieltermin, und warum er zählt."},
+    {"wann": "Donnerstag", "was": "Zweiter Beispieltermin."}
+  ],
+  "zum_lesen": [
+    {"quelle": "ECFR", "titel": "Beispiel für einen Lesetipp", "beschreibung": "Ein Satz, warum lesenswert.", "url": "https://ecfr.eu"}
+  ],
+  "hoertipps": [
+    {"sendung": "Deutschlandfunk, Hintergrund", "titel": "Beispielepisode", "beschreibung": "Ein Satz, warum hörenswert.", "dauer": "19 Min.", "url": "https://www.deutschlandfunk.de"}
+  ],
+  "zitat_der_woche": {"text": "Ein Beispielzitat für das Layout.", "person": "Platzhalter", "kontext": "Anlass des Zitats", "url": null}
 }

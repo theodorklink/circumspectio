@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Circumspectio – tägliches Briefing per Claude API, Versand über SendGrid.
+Circumspectio – Wochenausgabe am Sonntag per Claude API, Versand über SendGrid.
 
 Ablauf:
-  1. Zeitfenster prüfen (7:00 Uhr Berlin, Sommer-/Winterzeit automatisch)
-  2. Claude recherchiert per Websuche und liefert das Briefing als JSON
-  3. Links prüfen (nur gefundene bzw. erreichbare URLs bleiben stehen)
-  4. Bilder (Wikipedia/Wikimedia Commons) und Diagramme (matplotlib) erzeugen
-  5. HTML rendern (Mail mit eingebetteten Bildern + vollständige HTML-Datei)
-  6. Per SendGrid versenden, terminiert auf 7:00 Uhr
+  1. Zeitfenster prüfen (Sonntag 7:00 Uhr Berlin, Sommer-/Winterzeit automatisch)
+  2. Vorwochen-Ausgaben aus archiv/ laden, damit sich nichts doppelt
+  3. Claude recherchiert per Websuche die zurückliegende Woche und liefert JSON
+  4. Links prüfen (nur gefundene bzw. erreichbare URLs bleiben stehen)
+  5. Diagramme (matplotlib) erzeugen, keine Fotos
+  6. HTML rendern (Mail + vollständige HTML-Datei)
+  7. Per SendGrid versenden, terminiert auf 7:00 Uhr, Ausgabe in archiv/ ablegen
 
 Lokal testen ohne API-Kosten:
   python briefing.py --aus-json beispiel.json --dry-run
@@ -24,14 +25,12 @@ import os
 import re
 import sys
 from pathlib import Path
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
-from PIL import Image
-
 import matplotlib
 import matplotlib.ticker  # noqa: E402
 
@@ -40,6 +39,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "out"
+ARCHIV = ROOT / "archiv"
 TZ = ZoneInfo("Europe/Berlin")
 
 
@@ -52,13 +52,14 @@ def env(name: str, default: str | None = None, required: bool = False) -> str | 
 
 MODEL = env("CLAUDE_MODEL", "claude-sonnet-5-5")
 EFFORT = env("CLAUDE_EFFORT", "high")          # "medium" ist günstiger
-MAX_SEARCHES = int(env("MAX_SEARCHES", "25"))
-MAX_TOKENS = int(env("MAX_TOKENS", "48000"))
+MAX_SEARCHES = int(env("MAX_SEARCHES", "40"))
+MAX_TOKENS = int(env("MAX_TOKENS", "64000"))
 SEND_HOUR = int(env("SEND_HOUR", "7"))
+VORLAUF_H = 2                                   # Start zwei Stunden vor Versand
 TITLE = env("NEWSLETTER_TITLE", "Circumspectio")
-AUSGABE_START = env("AUSGABE_START", "2026-10-07")  # Datum von Ausgabe Nr. 1
+AUSGABE_START = env("AUSGABE_START", "2026-11-01")  # Sonntag der Wochenausgabe Nr. 1
+VORWOCHEN = int(env("VORWOCHEN", "3"))           # so viele frühere Ausgaben gegen Doppelungen
 
-UA = {"User-Agent": "Circumspectio/1.0 (privater Newsletter; GitHub Actions)"}
 BROWSER_UA = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 "
                   "(KHTML, like Gecko) Version/17.5 Safari/605.1.15"
@@ -75,8 +76,17 @@ MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
           "August", "September", "Oktober", "November", "Dezember"]
 
 
-def datum_de(d: dt.datetime) -> str:
+def datum_de(d: dt.datetime | dt.date) -> str:
     return f"{WOCHENTAGE[d.weekday()]}, {d.day}. {MONATE[d.month - 1]} {d.year}"
+
+
+def kurzdatum(d: dt.date) -> str:
+    return f"{d.day}. {MONATE[d.month - 1]}"
+
+
+def zeitraum(now: dt.datetime) -> tuple[dt.date, dt.date]:
+    """Berichtswoche: Sonntag der Vorwoche bis heute."""
+    return (now.date() - dt.timedelta(days=7), now.date())
 
 
 # ---------------------------------------------------------------------------
@@ -84,14 +94,14 @@ def datum_de(d: dt.datetime) -> str:
 # ---------------------------------------------------------------------------
 def im_zeitfenster(now: dt.datetime) -> bool:
     """GitHub-Cron läuft in UTC. Der Workflow startet zweimal (für Sommer- und
-    Winterzeit); hier wird der Lauf gewählt, der eine Stunde vor SEND_HOUR liegt."""
+    Winterzeit); hier wird der Lauf gewählt, der VORLAUF_H Stunden vor SEND_HOUR liegt."""
     if env("SOFORT", "false").lower() == "true":
         return True
     sched = env("CRON_SCHEDULE", "")
     if not sched:
         return True  # lokaler Lauf
     offset_h = int(now.utcoffset().total_seconds() // 3600)
-    erwartet = (SEND_HOUR - 1 - offset_h) % 24
+    erwartet = (SEND_HOUR - VORLAUF_H - offset_h) % 24
     try:
         cron_stunde = int(sched.split()[1])
     except (IndexError, ValueError):
@@ -103,7 +113,61 @@ def im_zeitfenster(now: dt.datetime) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 2. Recherche mit Claude
+# 2. Vorwochen (gegen Doppelungen)
+# ---------------------------------------------------------------------------
+def vorwochen_laden(now: dt.datetime) -> list[tuple[dt.date, dict]]:
+    if not ARCHIV.exists():
+        return []
+    ausgaben = []
+    for f in sorted(ARCHIV.glob("*.json"), reverse=True):
+        try:
+            datum = dt.date.fromisoformat(f.stem)
+        except ValueError:
+            continue
+        if datum >= now.date():
+            continue
+        try:
+            ausgaben.append((datum, json.loads(f.read_text(encoding="utf-8"))))
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"Archiv {f.name} nicht lesbar: {e}")
+        if len(ausgaben) >= VORWOCHEN:
+            break
+    return ausgaben
+
+
+def erster_satz(text: str | None) -> str:
+    text = (text or "").strip().split("\n")[0]
+    m = re.match(r"(.+?[.!?])(\s|$)", text)
+    return (m.group(1) if m else text)[:300]
+
+
+def vorwochen_text(ausgaben: list[tuple[dt.date, dict]]) -> str:
+    if not ausgaben:
+        return ("Es gibt noch keine frühere Wochenausgabe im Archiv. "
+                "Die Regel gegen Doppelungen entfällt diesmal.")
+    teile = ["Bereits behandelt in den letzten Ausgaben (nicht wiederholen, nur echte "
+             "neue Entwicklungen aufgreifen, siehe Abschnitt „Keine Doppelungen“):"]
+    for datum, d in ausgaben:
+        z = [f"\n### Ausgabe vom {datum_de(datum)}"]
+        if d.get("woche_in_einem_satz"):
+            z.append(f"Die Woche in einem Satz: {d['woche_in_einem_satz']}")
+        if d.get("leitartikel_titel"):
+            z.append(f"Leitartikel: {d['leitartikel_titel']} – {erster_satz(d.get('leitartikel'))}")
+        for a in d.get("analysen") or []:
+            z.append(f"Analyse: {a.get('titel', '')} – {erster_satz(a.get('text'))} "
+                     f"Worauf achten: {a.get('worauf_achten') or '–'}")
+        for s in d.get("die_woche") or []:
+            z.append(f"Meldung ({s.get('region', '')}): {s.get('titel', '')}")
+        for n in d.get("nachgehakt") or []:
+            z.append(f"Nachgehakt: {n.get('titel', '')}")
+        for r in d.get("am_horizont") or []:
+            z.append(f"Am Horizont: {r.get('titel', '')}")
+        teile.append("\n".join(z))
+    return "\n".join(teile)
+
+
+# ---------------------------------------------------------------------------
+# 3. Recherche mit Claude
 # ---------------------------------------------------------------------------
 TRACKING = re.compile(r"^(utm_|fbclid$|gclid$|ocid$|at_)", re.I)
 
@@ -130,15 +194,17 @@ def claude_aufruf(client, **kwargs):
         return stream.get_final_message()
 
 
-def recherchieren(now: dt.datetime) -> tuple[dict, set[str]]:
+def recherchieren(now: dt.datetime, vorwochen: str) -> tuple[dict, set[str]]:
     import anthropic
 
     client = anthropic.Anthropic(timeout=1800.0, max_retries=3)  # ANTHROPIC_API_KEY aus Umgebung
     system = (ROOT / "prompt.md").read_text(encoding="utf-8")
     messages = [{
         "role": "user",
-        "content": f"Heute ist {datum_de(now)}, {now:%H:%M} Uhr in Berlin. "
-                   "Erstelle die heutige Ausgabe. Recherchiere zuerst gründlich, dann gib das JSON aus.",
+        "content": (f"Heute ist {datum_de(now)}, {now:%H:%M} Uhr in Berlin. "
+                    f"Erstelle die Wochenausgabe für die Woche von {datum_de(zeitraum(now)[0])} "
+                    f"bis heute früh. Recherchiere zuerst gründlich, dann gib das JSON aus.\n\n"
+                    f"{vorwochen}"),
     }]
     tools = [{
         "type": "web_search_20250305",
@@ -204,7 +270,7 @@ def json_extrahieren(roh: str, client=None) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 3. Links prüfen
+# 4. Links prüfen
 # ---------------------------------------------------------------------------
 _link_cache: dict[str, bool] = {}
 
@@ -230,63 +296,22 @@ def link_ok(url, gesehen: set[str]) -> bool:
 
 
 def links_pruefen(d: dict, gesehen: set[str]) -> None:
-    for s in d.get("schlagzeilen") or []:
-        if not link_ok(s.get("link"), gesehen):
-            s["link"] = None
-    for h in d.get("hintergrund") or []:
+    for liste in ("die_woche", "nachgehakt", "am_horizont"):
+        for s in d.get(liste) or []:
+            if not link_ok(s.get("link"), gesehen):
+                s["link"] = None
+    for h in d.get("analysen") or []:
         h["links"] = [l for l in (h.get("links") or []) if link_ok(l.get("url"), gesehen)]
-    for r in d.get("am_horizont") or []:
-        if not link_ok(r.get("link"), gesehen):
-            r["link"] = None
-    d["hoertipps"] = [p for p in (d.get("hoertipps") or []) if link_ok(p.get("url"), gesehen)]
-    z = d.get("zitat")
+    for liste in ("hoertipps", "zum_lesen"):
+        d[liste] = [p for p in (d.get(liste) or []) if link_ok(p.get("url"), gesehen)]
+    z = d.get("zitat_der_woche")
     if z and not link_ok(z.get("url"), gesehen):
         z["url"] = None
 
 
 # ---------------------------------------------------------------------------
-# 4. Bilder und Diagramme
+# 5. Diagramme
 # ---------------------------------------------------------------------------
-def als_jpeg(raw: bytes, max_breite: int = 1200) -> tuple[bytes, int, int]:
-    im = Image.open(io.BytesIO(raw))
-    if im.mode in ("RGBA", "LA", "P"):
-        im = im.convert("RGBA")
-        bg = Image.new("RGB", im.size, (255, 255, 255))
-        bg.paste(im, mask=im.split()[-1])
-        im = bg
-    else:
-        im = im.convert("RGB")
-    if im.width > max_breite:
-        im = im.resize((max_breite, round(im.height * max_breite / im.width)), Image.LANCZOS)
-    buf = io.BytesIO()
-    im.save(buf, "JPEG", quality=82, optimize=True, progressive=True)
-    return buf.getvalue(), im.width, im.height
-
-
-def wiki_bild(titel: str, sprache: str = "de"):
-    """Hauptbild eines Wikipedia-Artikels (Wikimedia Commons, freie Lizenzen)."""
-    for lang in dict.fromkeys([sprache or "de", "de", "en"]):
-        try:
-            r = requests.get(
-                f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/"
-                f"{quote(titel.replace(' ', '_'), safe='')}",
-                headers=UA, timeout=20)
-            if not r.ok:
-                continue
-            info = r.json()
-            thumb = (info.get("thumbnail") or {}).get("source")
-            if not thumb:
-                continue
-            for src in dict.fromkeys([re.sub(r"/\d+px-", "/960px-", thumb), thumb]):
-                bild = requests.get(src, headers=UA, timeout=30)
-                if bild.ok and bild.headers.get("content-type", "").startswith("image/"):
-                    return bild.content, info["content_urls"]["desktop"]["page"], info.get("title", titel)
-        except (requests.RequestException, KeyError, ValueError) as e:
-            print(f"Bild '{titel}' nicht abrufbar: {e}")
-    print(f"Kein Bild gefunden: {titel}")
-    return None
-
-
 def zahl_de(v: float) -> str:
     s = f"{v:,.1f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return s[:-2] if s.endswith(",0") else s
@@ -340,25 +365,13 @@ def diagramm_png(spec: dict) -> bytes | None:
 
 
 def medien_erzeugen(d: dict) -> dict[str, dict]:
+    """Nur Logo und Diagramme mit belegten Zahlen. Fotos gibt es keine mehr."""
     medien: dict[str, dict] = {}
     for cid, datei in (("logo", "logo.png"), ("zeichen", "zeichen.png")):
         pfad = ROOT / "assets" / datei
         if pfad.exists():
             medien[cid] = {"data": pfad.read_bytes(), "mime": "image/png", "datei": datei}
-    for i, h in enumerate(d.get("hintergrund") or [], start=1):
-        b = h.get("bild_wikipedia")
-        if b and b.get("titel"):
-            treffer = wiki_bild(b["titel"], b.get("sprache", "de"))
-            if treffer:
-                raw, seite, artikel = treffer
-                try:
-                    jpg, w, hgt = als_jpeg(raw)
-                    cid = f"bild{i}"
-                    medien[cid] = {"data": jpg, "mime": "image/jpeg", "datei": f"{cid}.jpg"}
-                    h["bild"] = {"cid": cid, "seite": seite, "artikel": artikel,
-                                 "unterschrift": b.get("bildunterschrift", ""), "hoch": hgt > w * 1.1}
-                except OSError as e:
-                    print(f"Bild '{b['titel']}' nicht lesbar: {e}")
+    for i, h in enumerate(d.get("analysen") or [], start=1):
         if h.get("diagramm"):
             png = diagramm_png(h["diagramm"])
             if png:
@@ -369,14 +382,14 @@ def medien_erzeugen(d: dict) -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
-# 5. Rendern
+# 6. Rendern
 # ---------------------------------------------------------------------------
 REGIONEN = ["Deutschland", "Europa", "Welt"]
 
 
-def gruppieren(schlagzeilen: list[dict]) -> list[tuple[str, list[dict]]]:
+def gruppieren(meldungen: list[dict]) -> list[tuple[str, list[dict]]]:
     gruppen: dict[str, list[dict]] = {}
-    for s in schlagzeilen or []:
+    for s in meldungen or []:
         gruppen.setdefault((s.get("region") or "Welt").strip(), []).append(s)
     reihenfolge = sorted(gruppen, key=lambda r: REGIONEN.index(r) if r in REGIONEN else 99)
     return [(r, gruppen[r]) for r in reihenfolge]
@@ -414,7 +427,7 @@ def ausgabe_nr(now: dt.datetime) -> int:
         start = dt.date.fromisoformat(AUSGABE_START)
     except ValueError:
         return 1
-    return max(1, (now.date() - start).days + 1)
+    return max(1, (now.date() - start).days // 7 + 1)
 
 
 def rendern(d: dict, medien: dict, now: dt.datetime, modus: str) -> str:
@@ -435,30 +448,39 @@ def rendern(d: dict, medien: dict, now: dt.datetime, modus: str) -> str:
         except (TypeError, ValueError):
             r["signal"] = 1
 
+    von, bis = zeitraum(now)
     return jinja.get_template("template.html.j2").render(
-        d=d, gruppen=gruppieren(d.get("schlagzeilen")), titel=TITLE,
+        d=d, gruppen=gruppieren(d.get("die_woche")), titel=TITLE,
         datum=datum_de(now), uhrzeit=now.strftime("%H:%M"), modell=MODEL, src=src,
-        medien=medien, nr=ausgabe_nr(now), lesezeit=lesezeit(d))
+        medien=medien, nr=ausgabe_nr(now), lesezeit=lesezeit(d),
+        zeitraum=f"{kurzdatum(von)} bis {kurzdatum(bis)} {bis.year}")
 
 
 def klartext(d: dict, now: dt.datetime) -> str:
-    z = [f"{TITLE} – {datum_de(now)}", "", d.get("lage_in_einem_satz") or "", ""]
-    for region, items in gruppieren(d.get("schlagzeilen")):
+    z = [f"{TITLE} – Wochenausgabe, {datum_de(now)}", "", d.get("woche_in_einem_satz") or "", ""]
+    if d.get("leitartikel"):
+        z += [(d.get("leitartikel_titel") or "Die Woche im Zusammenhang").upper(), "",
+              d["leitartikel"], ""]
+    for h in d.get("analysen") or []:
+        z += [h.get("titel", "").upper(), "", h.get("text", ""), ""]
+        for a in h.get("akteure") or []:
+            z.append(f"- {a.get('name', '')}: will {a.get('will', '')}")
+        for v in h.get("von_allen_seiten") or []:
+            z.append(f"- {v.get('sicht', '')}: {v.get('lesart', '')}")
+        z += ["", "Hinter den Kulissen: " + (h.get("hinter_den_kulissen") or ""), ""]
+    for region, items in gruppieren(d.get("die_woche")):
         z += [region.upper(), ""]
         for s in items:
             z += [f"- {s.get('titel', '')}", f"  {s.get('kurz', '')}"]
             if s.get("link"):
                 z.append(f"  {s['link']}")
             z.append("")
-    for h in d.get("hintergrund") or []:
-        z += [h.get("titel", "").upper(), "", h.get("text", ""), "",
-              "Hinter den Kulissen: " + (h.get("hinter_den_kulissen") or ""), ""]
-    z.append("Die vollständige Ausgabe mit Bildern steht in der HTML-Ansicht.")
+    z.append("Die vollständige Ausgabe steht in der HTML-Ansicht.")
     return "\n".join(z)
 
 
 # ---------------------------------------------------------------------------
-# 6. Versand über SendGrid
+# 7. Versand über SendGrid
 # ---------------------------------------------------------------------------
 def senden(html_mail: str, html_datei: str, text: str, medien: dict, now: dt.datetime) -> None:
     key = env("SENDGRID_API_KEY", required=True)
@@ -476,7 +498,7 @@ def senden(html_mail: str, html_datei: str, text: str, medien: dict, now: dt.dat
     payload = {
         "personalizations": [{"to": [{"email": e}]} for e in empfaenger],
         "from": {"email": absender, "name": env("MAIL_FROM_NAME", TITLE)},
-        "subject": f"{TITLE} Nr. {ausgabe_nr(now)} | {datum_de(now)}",
+        "subject": f"{TITLE} Nr. {ausgabe_nr(now)} | Die Woche bis {datum_de(now)}",
         "content": [{"type": "text/plain", "value": text},
                     {"type": "text/html", "value": html_mail}],
         "attachments": anhaenge,
@@ -513,7 +535,9 @@ def main() -> None:
     else:
         if not im_zeitfenster(now):
             return
-        daten, gesehen = recherchieren(now)
+        vorwochen = vorwochen_laden(now)
+        print(f"{len(vorwochen)} frühere Ausgabe(n) als Abgleich gegen Doppelungen geladen.")
+        daten, gesehen = recherchieren(now, vorwochen_text(vorwochen))
         (OUT / "briefing.json").write_text(json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if gesehen is not None:
@@ -522,12 +546,19 @@ def main() -> None:
     html_mail = rendern(daten, medien, now, "cid")
     html_datei = rendern(daten, medien, now, "data")
     (OUT / "circumspectio.html").write_text(html_datei, encoding="utf-8")
-    print(f"HTML erzeugt: {len(html_mail) // 1024} KB (Mail), {len(medien)} Bilder/Grafiken.")
+    print(f"HTML erzeugt: {len(html_mail) // 1024} KB (Mail), {len(medien)} Grafiken.")
 
     if dry:
         print("Dry-Run: nichts versendet. Ergebnis in out/circumspectio.html")
         return
     senden(html_mail, html_datei, klartext(daten, now), medien, now)
+
+    # Ausgabe ins Archiv, damit die nächste Woche weiß, was schon lief
+    if not args.aus_json:
+        ARCHIV.mkdir(exist_ok=True)
+        (ARCHIV / f"{now:%Y-%m-%d}.json").write_text(
+            json.dumps(daten, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Archiviert: archiv/{now:%Y-%m-%d}.json")
 
 
 if __name__ == "__main__":

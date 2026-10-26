@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
-<title>{{ titel }} | {{ datum }}</title>
+<title>{{ titel }} | Wochenausgabe {{ datum }}</title>
 <style>
   body { margin:0; padding:0; background:#E9EBEE; }
   a { color:{{ accent }}; }
@@ -24,7 +24,7 @@
 </style>
 </head>
 <body style="margin:0;padding:0;background:#E9EBEE;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{ d.lage_in_einem_satz }}</div>
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{ d.woche_in_einem_satz }}</div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#E9EBEE;">
 <tr><td align="center" style="padding:24px 8px;">
@@ -36,7 +36,7 @@
   {% if medien.logo %}
   <img src="{{ src('logo') }}" width="440" alt="{{ titel }}"
        style="display:block;margin:0 auto;width:440px;max-width:100%;height:auto;border:0;">
-  <div style="{{ serif }}font-size:16px;font-style:italic;color:{{ muted }};padding-top:8px;">Die Lage am Morgen, von allen Seiten betrachtet</div>
+  <div style="{{ serif }}font-size:16px;font-style:italic;color:{{ muted }};padding-top:8px;">Die Woche, von allen Seiten betrachtet</div>
   {% else %}
   <div class="kopf" style="{{ serif }}font-size:50px;line-height:1.05;letter-spacing:6px;color:{{ ink }};padding:10px 0 4px 0;">{{ titel }}</div>
   {% endif %}
@@ -49,57 +49,38 @@
       <td align="right" style="{{ serif }}font-size:14px;font-style:italic;color:{{ muted }};padding:7px 0;">Lesezeit etwa {{ lesezeit }} Min.</td>
     </tr>
   </table>
-  {% if d.lage_in_einem_satz %}
-  <p style="{{ serif }}font-size:22px;line-height:1.45;font-style:italic;color:{{ ink }};margin:22px 0 10px 0;">{{ d.lage_in_einem_satz }}</p>
+  <div style="{{ serif }}font-size:14px;font-style:italic;color:{{ accent }};text-align:center;padding:8px 0 0 0;">Wochenausgabe &middot; {{ zeitraum }}</div>
+  {% if d.woche_in_einem_satz %}
+  <p style="{{ serif }}font-size:22px;line-height:1.45;font-style:italic;color:{{ ink }};margin:20px 0 10px 0;">{{ d.woche_in_einem_satz }}</p>
   {% endif %}
-  {% if d.hintergrund %}
+  {% if d.analysen %}
   <p style="{{ serif }}font-size:15px;line-height:1.5;color:{{ muted }};margin:0 0 6px 0;">
     <span style="font-style:italic;">In dieser Ausgabe:</span>
-    {% for h in d.hintergrund %}{{ h.titel }}{% if not loop.last %}; {% endif %}{% endfor %}
+    {% for h in d.analysen %}{{ h.titel }}{% if not loop.last %}; {% endif %}{% endfor %}
   </p>
   {% endif %}
 </td></tr>
 
-<!-- Die Meldungen -->
+<!-- Leitartikel -->
+{% if d.leitartikel %}
 <tr><td class="pad" style="padding:8px 32px 0 32px;">
-  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Die Meldungen</h2>
-  {% for region, items in gruppen %}
-  <div style="{{ serif }}font-size:17px;font-style:italic;color:{{ accent }};padding:14px 0 2px 0;">{{ region }}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-    {% for s in items %}
-    <tr><td style="padding:10px 0 11px 0;border-top:1px solid {{ rule }};">
-      <div style="{{ serif }}font-size:18px;line-height:1.35;font-weight:bold;color:{{ ink }};">
-        {% if s.link %}<a href="{{ s.link }}" style="color:{{ ink }};text-decoration:none;">{{ s.titel }}</a>{% else %}{{ s.titel }}{% endif %}
-      </div>
-      <div style="{{ serif }}font-size:16px;line-height:1.5;color:#2B2B2B;padding-top:3px;">
-        {{ s.kurz }}{% if s.link %} <a href="{{ s.link }}" style="color:{{ accent }};font-style:italic;">{{ s.quelle or "zum Artikel" }}</a>{% endif %}
-      </div>
-    </td></tr>
-    {% endfor %}
-  </table>
-  {% endfor %}
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Die Woche im Zusammenhang</h2>
+  {% if d.leitartikel_titel %}<div style="{{ serif }}font-size:25px;line-height:1.22;font-weight:bold;color:{{ ink }};padding:12px 0 12px 0;">{{ d.leitartikel_titel }}</div>{% endif %}
+  {{ d.leitartikel | absaetze(p_body) }}
 </td></tr>
+{% endif %}
 
-<!-- Hintergrund -->
-{% if d.hintergrund %}
+<!-- Analysen -->
+{% if d.analysen %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Hintergrund</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Analysen</h2>
 </td></tr>
-{% for h in d.hintergrund %}
+{% for h in d.analysen %}
 <tr><td class="pad" style="padding:16px 32px 6px 32px;">
   {% if h.dachzeile %}<div style="{{ serif }}font-size:15px;font-style:italic;color:{{ muted }};padding-bottom:4px;">{{ h.dachzeile }}</div>{% endif %}
   <div style="{{ serif }}font-size:25px;line-height:1.22;font-weight:bold;color:{{ ink }};padding-bottom:12px;">{{ h.titel }}</div>
-
-  {% if h.bild %}
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px 0;">
-    <tr><td align="center">
-      <img src="{{ src(h.bild.cid) }}" width="{{ 300 if h.bild.hoch else 576 }}" alt="{{ h.bild.unterschrift or h.bild.artikel }}"
-           style="display:block;width:{{ 300 if h.bild.hoch else 576 }}px;max-width:100%;height:auto;border:0;">
-    </td></tr>
-    <tr><td align="{{ 'center' if h.bild.hoch else 'left' }}" style="{{ serif }}font-size:13px;line-height:1.4;color:{{ muted }};padding-top:6px;">
-      {{ h.bild.unterschrift }} <span style="font-style:italic;">Bild: <a href="{{ h.bild.seite }}" style="color:{{ muted }};">Wikimedia Commons / Wikipedia</a></span>
-    </td></tr>
-  </table>
+  {% if h.fortschreibung %}
+  <p style="{{ serif }}font-size:15px;line-height:1.5;color:{{ muted }};margin:0 0 12px 0;"><span style="font-style:italic;color:{{ accent }};">Neu seit vergangener Woche:</span> {{ h.fortschreibung }}</p>
   {% endif %}
 
   {{ h.text | absaetze(p_body) }}
@@ -109,26 +90,38 @@
        style="display:block;width:576px;max-width:100%;height:auto;border:0;margin:4px 0 18px 0;">
   {% endif %}
 
+  {% if h.akteure %}
+  <div style="{{ serif }}font-size:16px;font-weight:bold;color:{{ ink }};padding:6px 0 6px 0;">Wer will was?</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid {{ ink }};margin-bottom:16px;">
+    {% for a in h.akteure %}
+    <tr>
+      <td width="30%" valign="top" style="{{ serif }}font-size:15px;line-height:1.4;font-weight:bold;color:{{ ink }};padding:8px 10px 8px 0;border-bottom:1px solid {{ rule }};">{{ a.name }}</td>
+      <td valign="top" style="{{ serif }}font-size:15px;line-height:1.45;color:{{ ink }};padding:8px 0;border-bottom:1px solid {{ rule }};">
+        {{ a.will }}{% if a.mittel %}<br><span style="color:{{ muted }};font-style:italic;">Mittel: {{ a.mittel }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if h.von_allen_seiten %}
+  <div style="{{ serif }}font-size:16px;font-weight:bold;color:{{ ink }};padding:6px 0 6px 0;">Von allen Seiten</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+    {% for v in h.von_allen_seiten %}
+    <tr><td style="padding:7px 0 7px 14px;border-left:2px solid {{ rule }};">
+      <span style="{{ serif }}font-size:15px;font-style:italic;color:{{ accent }};">{{ v.sicht }}:</span>
+      <span style="{{ serif }}font-size:15px;line-height:1.5;color:{{ ink }};">{{ v.lesart }}</span>
+    </td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   {% if h.hinter_den_kulissen %}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 14px 0;">
     <tr><td style="background:{{ tint }};border-left:3px solid {{ accent }};padding:14px 18px 2px 18px;">
       <div style="{{ serif }}font-size:16px;font-weight:bold;color:{{ accent }};padding-bottom:6px;">Hinter den Kulissen</div>
       {{ h.hinter_den_kulissen | absaetze(serif ~ "font-size:16px;line-height:1.55;color:" ~ ink ~ ";margin:0 0 12px 0;") }}
     </td></tr>
-  </table>
-  {% endif %}
-
-  {% if h.akteure and h.akteure.akteure %}
-  <div style="{{ serif }}font-size:16px;font-weight:bold;color:{{ ink }};padding:6px 0 6px 0;">{{ h.akteure.titel or "Wer will was?" }}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid {{ ink }};margin-bottom:16px;">
-    {% for a in h.akteure.akteure %}
-    <tr>
-      <td width="30%" valign="top" style="{{ serif }}font-size:15px;line-height:1.4;font-weight:bold;color:{{ ink }};padding:8px 10px 8px 0;border-bottom:1px solid {{ rule }};">{{ a.name }}</td>
-      <td valign="top" style="{{ serif }}font-size:15px;line-height:1.45;color:{{ ink }};padding:8px 0;border-bottom:1px solid {{ rule }};">
-        {{ a.position }}{% if a.interesse %}<br><span style="color:{{ muted }};font-style:italic;">Interesse: {{ a.interesse }}</span>{% endif %}
-      </td>
-    </tr>
-    {% endfor %}
   </table>
   {% endif %}
 
@@ -145,6 +138,44 @@
   {% if not loop.last %}<div style="border-top:1px solid {{ rule }};height:0;line-height:0;font-size:0;margin-top:14px;">&nbsp;</div>{% endif %}
 </td></tr>
 {% endfor %}
+{% endif %}
+
+<!-- Die Woche -->
+{% if d.die_woche %}
+<tr><td class="pad" style="padding:22px 32px 0 32px;">
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Was die Woche bestimmt hat</h2>
+  {% for region, items in gruppen %}
+  <div style="{{ serif }}font-size:17px;font-style:italic;color:{{ accent }};padding:14px 0 2px 0;">{{ region }}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    {% for s in items %}
+    <tr><td style="padding:10px 0 11px 0;border-top:1px solid {{ rule }};">
+      <div style="{{ serif }}font-size:18px;line-height:1.35;font-weight:bold;color:{{ ink }};">
+        {% if s.link %}<a href="{{ s.link }}" style="color:{{ ink }};text-decoration:none;">{{ s.titel }}</a>{% else %}{{ s.titel }}{% endif %}
+      </div>
+      <div style="{{ serif }}font-size:16px;line-height:1.5;color:#2B2B2B;padding-top:3px;">
+        {{ s.kurz }}{% if s.link %} <a href="{{ s.link }}" style="color:{{ accent }};font-style:italic;">{{ s.quelle or "zum Artikel" }}</a>{% endif %}
+      </div>
+    </td></tr>
+    {% endfor %}
+  </table>
+  {% endfor %}
+</td></tr>
+{% endif %}
+
+<!-- Nachgehakt -->
+{% if d.nachgehakt %}
+<tr><td class="pad" style="padding:22px 32px 0 32px;">
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Nachgehakt</h2>
+  <p style="{{ serif }}font-size:15px;font-style:italic;color:{{ muted }};margin:4px 0 4px 0;">Was aus den Themen der Vorwochen geworden ist.</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    {% for n in d.nachgehakt %}
+    <tr><td style="padding:10px 0 11px 0;border-top:1px solid {{ rule }};">
+      <div style="{{ serif }}font-size:17px;line-height:1.35;font-weight:bold;color:{{ ink }};">{% if n.link %}<a href="{{ n.link }}" style="color:{{ ink }};text-decoration:none;">{{ n.titel }}</a>{% else %}{{ n.titel }}{% endif %}</div>
+      <div style="{{ serif }}font-size:16px;line-height:1.5;color:#2B2B2B;padding-top:3px;">{{ n.text }}</div>
+    </td></tr>
+    {% endfor %}
+  </table>
+</td></tr>
 {% endif %}
 
 <!-- Am Horizont -->
@@ -166,14 +197,14 @@
 </td></tr>
 {% endif %}
 
-<!-- Termine -->
-{% if d.termine %}
+<!-- Die kommende Woche -->
+{% if d.die_kommende_woche %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Termine</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Die kommende Woche</h2>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-    {% for t in d.termine %}
+    {% for t in d.die_kommende_woche %}
     <tr>
-      <td width="34%" valign="top" style="{{ serif }}font-size:15px;font-style:italic;color:{{ muted }};padding:8px 10px 8px 0;border-top:1px solid {{ rule }};">{{ t.wann }}</td>
+      <td width="30%" valign="top" style="{{ serif }}font-size:15px;font-style:italic;color:{{ muted }};padding:8px 10px 8px 0;border-top:1px solid {{ rule }};">{{ t.wann }}</td>
       <td valign="top" style="{{ serif }}font-size:16px;line-height:1.45;color:{{ ink }};padding:8px 0;border-top:1px solid {{ rule }};">{{ t.was }}</td>
     </tr>
     {% endfor %}
@@ -181,16 +212,26 @@
 </td></tr>
 {% endif %}
 
-<!-- Zum Hören -->
-{% if d.hoertipps %}
+<!-- Für den Sonntag -->
+{% if d.zum_lesen or d.hoertipps %}
 <tr><td class="pad" style="padding:22px 32px 0 32px;">
-  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Zum Hören</h2>
+  {% set ns.n = ns.n + 1 %}<h2 style="{{ h_sec }}"><span style="color:{{ accent }};">{{ ns.n|roemisch }}.</span>&nbsp; Für den Sonntag</h2>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-    {% for p in d.hoertipps %}
+    {% for p in d.zum_lesen or [] %}
+    <tr>
+      <td width="30" valign="top" style="{{ serif }}font-size:16px;color:{{ accent }};padding:11px 0 0 0;border-top:1px solid {{ rule }};">&#167;</td>
+      <td valign="top" style="padding:10px 0 11px 0;border-top:1px solid {{ rule }};">
+        <div style="{{ serif }}font-size:14px;font-style:italic;color:{{ muted }};">Zum Lesen &middot; {{ p.quelle }}</div>
+        <div style="{{ serif }}font-size:17px;line-height:1.35;font-weight:bold;"><a href="{{ p.url }}" style="color:{{ ink }};text-decoration:none;">{{ p.titel }}</a></div>
+        {% if p.beschreibung %}<div style="{{ serif }}font-size:15px;line-height:1.45;color:#2B2B2B;padding-top:2px;">{{ p.beschreibung }}</div>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% for p in d.hoertipps or [] %}
     <tr>
       <td width="30" valign="top" style="font-size:16px;color:{{ accent }};padding:11px 0 0 0;border-top:1px solid {{ rule }};">&#9654;</td>
       <td valign="top" style="padding:10px 0 11px 0;border-top:1px solid {{ rule }};">
-        <div style="{{ serif }}font-size:14px;font-style:italic;color:{{ muted }};">{{ p.sendung }}{% if p.dauer %}, {{ p.dauer }}{% endif %}</div>
+        <div style="{{ serif }}font-size:14px;font-style:italic;color:{{ muted }};">Zum Hören &middot; {{ p.sendung }}{% if p.dauer %}, {{ p.dauer }}{% endif %}</div>
         <div style="{{ serif }}font-size:17px;line-height:1.35;font-weight:bold;"><a href="{{ p.url }}" style="color:{{ ink }};text-decoration:none;">{{ p.titel }}</a></div>
         {% if p.beschreibung %}<div style="{{ serif }}font-size:15px;line-height:1.45;color:#2B2B2B;padding-top:2px;">{{ p.beschreibung }}</div>{% endif %}
       </td>
@@ -200,13 +241,15 @@
 </td></tr>
 {% endif %}
 
-<!-- Zitat -->
-{% if d.zitat and d.zitat.text %}
+<!-- Zitat der Woche -->
+{% set z = d.zitat_der_woche %}
+{% if z and z.text %}
 <tr><td class="pad" style="padding:30px 32px 0 32px;">
   <div style="border-top:2px solid {{ ink }};padding-top:22px;">
-    <p style="{{ serif }}font-size:23px;line-height:1.4;font-style:italic;color:{{ ink }};margin:0 0 8px 0;">&bdquo;{{ d.zitat.text }}&ldquo;</p>
+    <div style="{{ serif }}font-size:14px;font-style:italic;color:{{ accent }};padding-bottom:6px;">Zitat der Woche</div>
+    <p style="{{ serif }}font-size:23px;line-height:1.4;font-style:italic;color:{{ ink }};margin:0 0 8px 0;">&bdquo;{{ z.text }}&ldquo;</p>
     <p style="{{ serif }}font-size:15px;line-height:1.45;color:{{ muted }};margin:0;">
-      {% if d.zitat.url %}<a href="{{ d.zitat.url }}" style="color:{{ muted }};">{{ d.zitat.person }}</a>{% else %}{{ d.zitat.person }}{% endif %}{% if d.zitat.kontext %}, {{ d.zitat.kontext }}{% endif %}
+      {% if z.url %}<a href="{{ z.url }}" style="color:{{ muted }};">{{ z.person }}</a>{% else %}{{ z.person }}{% endif %}{% if z.kontext %}, {{ z.kontext }}{% endif %}
     </p>
   </div>
 </td></tr>
@@ -219,7 +262,7 @@
   {% endif %}
   <div style="border-top:1px solid {{ rule }};padding-top:14px;{{ serif }}font-size:13px;line-height:1.5;color:{{ muted }};">
     {{ titel }} Nr. {{ nr }}, Stand {{ uhrzeit }} Uhr Berliner Zeit.
-    Recherchiert und verfasst von Claude ({{ modell }}) aus öffentlich zugänglichen Quellen. Einordnungen und Lesarten sind maschinell erstellt und können Fehler enthalten; vor Entscheidungen bitte die verlinkten Originalquellen prüfen. Bilder über Wikipedia / Wikimedia Commons, Lizenzangaben auf den verlinkten Seiten.
+    Wochenausgabe, erscheint sonntags. Recherchiert und verfasst von Claude ({{ modell }}) aus öffentlich zugänglichen Quellen. Einordnungen und Lesarten sind maschinell erstellt und können Fehler enthalten; vor Entscheidungen bitte die verlinkten Originalquellen prüfen.
   </div>
 </td></tr>
 
